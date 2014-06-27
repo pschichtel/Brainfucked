@@ -1,25 +1,31 @@
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
-abstract class Parser {
+abstract class Language {
   def parse(source: Source): RootNode
+  def generate(root: Node, out: StringBuilder)
 }
 
-object Parser {
-  def fromPath(path: String): Option[Parser] = {
+object Language {
+  def fromPath(path: String): Option[Language] = {
     val lastDot = path.lastIndexOf(".")
     if (lastDot != -1) {
-      path.substring(lastDot + 1).toLowerCase match {
-        case "bf"  => Some(new BrainfuckParser)
-        case "ook" => Some(new OokParser)
-      }
+      fromName(path.substring(lastDot + 1))
     } else {
       None
     }
   }
+
+  def fromName(name: String): Option[Language] = {
+    name.toLowerCase match {
+      case "bf"  => Some(new BrainfuckLanguage)
+      case "ook" => Some(new OokLanguage)
+      case _     => None
+    }
+  }
 }
 
-class BrainfuckParser extends Parser {
+class BrainfuckLanguage extends Language {
   override def parse(source: Source): RootNode = {
     val root = new RootNode
     var current: Node = root
@@ -38,9 +44,25 @@ class BrainfuckParser extends Parser {
 
     root
   }
+
+  override def generate(root: Node, out: StringBuilder) = {
+    root.children.foreach {
+      case _: ValIncrNode => out.append('+')
+      case _: ValDecrNode => out.append('-')
+      case _: PtrIncrNode => out.append('>')
+      case _: PtrDecrNode => out.append('<')
+      case _: PutNode     => out.append('.')
+      case _: GetNode     => out.append(',')
+      case w: WhileNode   =>
+        out.append('[')
+        generate(w, out)
+        out.append(']')
+      case _ => throw new IllegalArgumentException("Unknown node in generator")
+    }
+  }
 }
 
-class OokParser extends Parser {
+class OokLanguage extends Language {
   override def parse(source: Source): RootNode = {
 
     var token = new StringBuilder
@@ -85,5 +107,27 @@ class OokParser extends Parser {
     }
 
     root
+  }
+
+  override def generate(root: Node, out: StringBuilder) = {
+    val tokens = new ArrayBuffer[String]
+    generate(root.children, tokens)
+    out.append(tokens.mkString(" "))
+  }
+
+  private def generate(children: Seq[Node], out: ArrayBuffer[String]): Unit = {
+    for (c <- children) c match {
+      case _: ValIncrNode => out += "Ook. Ook."
+      case _: ValDecrNode => out += "Ook! Ook!"
+      case _: PtrIncrNode => out += "Ook. Ook?"
+      case _: PtrDecrNode => out += "Ook? Ook."
+      case _: PutNode     => out += "Ook! Ook."
+      case _: GetNode     => out += "Ook. Ook!"
+      case w: WhileNode =>
+        out += "Ook! Ook?"
+        generate(w.children, out)
+        out += "Ook? Ook!"
+      case _ => throw new IllegalArgumentException("Unknown node in generator")
+    }
   }
 }
